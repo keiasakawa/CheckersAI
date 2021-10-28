@@ -1,6 +1,5 @@
 from BoardClasses import Board
 from BoardClasses import Move
-from datetime     import timedelta
 from random       import randint
 from timeit       import default_timer as timer
 
@@ -9,10 +8,8 @@ from timeit       import default_timer as timer
 
 class StudentAI():
 
-    # Hard coded time limit in second(s).
-    # TODO: Change it 480 for submission as 480 is way too long for test runs.
-    
-    TIME_LIMIT = 1
+    # Keep track of time.
+    timeStart = timer()
 
     def __init__(self, col, row, p):
         
@@ -27,9 +24,6 @@ class StudentAI():
     
     def get_move(self, move):
         
-        # Keep track of time.
-        timeStart = timer()
-        
         if len(move) != 0:
             self.board.make_move(move, self.opponent[self.color])
         else:
@@ -40,18 +34,23 @@ class StudentAI():
         inner_index = randint(0, len(moves[index]) - 1) # TODO: Remove later.
         move        = moves[index][inner_index]         # TODO: Remove later.
         
-        # If there's only one move, then return it.
-        
-        # if len(moves) == 1:  # Doesn't work as moves is a list of move
-        #     return moves[0]  # move objects, not moves themself.
-         
-        while timer() < timeStart + self.TIME_LIMIT:
+        if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
             
-            # TODO: Should call MCTS here.
+            # If there's only one move, then return it.
+            move = moves[0][0]
             
-            pass
+        elif timer() + 4 > self.timeStart + 480:
+            
+            # Return random moves if 4 seconds or less are remaining.
+            i    = randint(0, len(moves) - 1)
+            move = moves[i][randint(0, len(moves[i]) - 1)]
 
+        else:
+            pass
+            # TODO: Call MCTS.
+            
         self.board.make_move(move,self.color)
+        
         return move
 
 # ==== MONTE-CARLO TREE SEARCH =============================================== #
