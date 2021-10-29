@@ -2,6 +2,8 @@ from BoardClasses import Board
 from BoardClasses import Move
 from random       import randint
 from timeit       import default_timer as timer
+import math
+import copy
 
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
@@ -85,12 +87,37 @@ class StudentAI():
         pass
     
     # we do alpha-beta pruning to get rid of nodes we do not need to explore
-    
-    def alphabeta(state, player, alpha, beta):
+    # FOR BOARD, WHETHER TO DEEP COPY or UNDO
+    def alphaBeta(self, board, player,  alpha, beta, depth):
         # we check to see if the current state is end
-        if state.is_win() == 2:
-            return state
+        # if we reach a certain depth, we want to stop searching
+        if board.is_win() in [1,2] or depth == 5:
+            return state # implement the heuristic here
 
-        if player == 2:
-            max
+        # the maximizing player, which is us
+        if player == self.color:
+            maxNode = -math.inf
+            # made deep copy but wastes space so we can change this
+            for move in board.get_all_possible_moves(player):
+                b = copy.deepcopy(board)
+                b.make_move(move, self.color)
+                node, candidate = self.alphaBeta(b, self.opponent[self.color], alpha, beta, depth + 1)
+                if (node > maxNode):
+                    maxNode = node
+                    m = candidate
+                alpha = max(alpha, node)
+                if beta <= alpha:
+                    break
+            return maxNode, m
+        else:
+            minNode = math.inf 
+            for move in board.get_all_possible_moves(player):
+                b = copy.deepcopy(board)
+                b.make_move(move, self.opponent[self.color])
+                node, m = self.alphaBeta(b, self.color, alpha, beta, depth + 1)
+                minNode = min(minNode, node)
+                beta = min(beta, node)
+                if beta <= alpha:
+                    break
+            return minNode, m
     
