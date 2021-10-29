@@ -2,6 +2,7 @@ from BoardClasses import Board
 from BoardClasses import Move
 from random       import randint
 from timeit       import default_timer as timer
+
 import math
 import copy
 
@@ -48,43 +49,13 @@ class StudentAI():
             move = moves[i][randint(0, len(moves[i]) - 1)]
 
         else:
+            
             pass
             # TODO: Call MCTS.
             
         self.board.make_move(move,self.color)
         
         return move
-
-# ==== MONTE-CARLO TREE SEARCH =============================================== #
-    
-    # TODO: REQUIRED
-    def evaluate():
-    
-    	""" Evaluation function to decide whether to explore or exploit. """
-    	
-    	pass
-    
-    # TODO: Optional
-    def load_tree():
-    	
-    	""" Load game tree of previous game(s). """
-    	
-    	pass
-    
-    
-    # TODO: Optional
-    def log_tree():
-    	
-    	""" Write to game tree to log for future game(s). """
-    	
-    	pass
-    
-    # TODO: REQUIRED
-    # We might have to code MCTS as a class object as it will be easier to
-    # manage the nodes.
-    def mcts(state):
-        
-        pass
     
     # we do alpha-beta pruning to get rid of nodes we do not need to explore
     # FOR BOARD, WHETHER TO DEEP COPY or UNDO
@@ -120,4 +91,66 @@ class StudentAI():
                 if beta <= alpha:
                     break
             return minNode, m
+
+C = math.sqrt(2)    # Exploration constant.
+
+class MCTS():
+    
+    def __init__(self, board, root = None, state = None):
+        
+        self.b = board      # Keep board state of node.
+        
+        self.w = 0          # Count the number of win(s).
+        self.s = 0          # Count the number of simulation(s).
+        
+        self.root = root    # Keep track of parent for back-propagation.
+        self.leaf = []      # List of childrens to explore or exploit.
+        
+        # TODO: Implement state for specialized action.
+        
+    # DONE
+    def backpropagate(self, value):
+        """  Propagate terminal value recursively back to descendant nodes. """
+        
+        self.w += value
+        self.s += 1
+        
+        self.root.backpropagate(value)
+        
+    
+    # TODO: REQUIRED
+    def expansion(self):
+        """ Fill current node with children. """
+        
+        self.leaf = 
+    
+    
+    # TODO: Optional
+    def evaluation(self):
+        """ Heuristic evaluation in selecting random node for simulation. """
+        
+        pass
+    
+    
+    # TODO: REQUIRED    
+    def selection(self, depth):
+        """ Select a child node to explore based on UCT value. """
+        
+        pass
+    
+    
+    # TODO: REQUIRED
+    def simulation(self):
+        """ Simulate a game is played. """
+        
+        pass
+    
+    
+    # DONE
+    def uct(self):
+        """ Compute the UCT value of the node for selection process. """
+        
+        return self.w / self.s + C * math.sqrt(math.log(self.root.v) / self.v) \
+               if self.s != 0 else 1
+               
     
