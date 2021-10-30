@@ -120,14 +120,14 @@ class MCTS():
         
     
     # TODO: REQUIRED
-    def expansion(self, node):
+    def expansion(self):
         """ Fill current node with children. """
-        board = copy.deepcopy(node.b)
-        for move in node.b.get_all_possible_moves(self.opponent[self.player]):
+        board = copy.deepcopy(self.b)
+        for move in self.b.get_all_possible_moves(self.opponent[self.player]):
             board = copy.deepcopy(self.b)
             board.make_move(move, self.opponent[self.player])
             self.leaf.append(board)
-        self.simulation(node)
+        self.simulation()
     
     
     # TODO: Optional
@@ -138,44 +138,48 @@ class MCTS():
     
     
     # TODO: REQUIRED    
-    def selection(self, depth, node):
+    def selection(self, depth):
         """ Select a child node to explore based on UCT value. """
         # if a leaf node is reached, we expand
-        if node.leaf.len() == 0:
-            self.expansion(node)
+        if self.leaf.len() == 0:
+            self.expansion()
         else:
             # we find the highest value for the UCB
             maxVal = -math.inf
-            for leaf in node.leaf():
+            for leaf in self.leaf():
                 pot = leaf.uct()
                 if pot > maxVal:
                     maxVal = pot
                     selected = leaf
             # make a recursive call with the node of the highest value
-            self.selection(depth + 1, selected)
+            selected.selection(depth + 1)
     
     
     # TODO: REQUIRED
-    def simulation(self, node):
+    def simulation(self):
         """ Simulate a game is played. """
         # random but we can implement an evaluation
-        moves = node.b.get_all_possible_moves(node.opponent[node.player])
+        moves = self.b.get_all_possible_moves(self.opponent[self.player])
         # pick a random node to simulate on
         index  = randint(0, len(moves) - 1)
         move = moves[index][randint(0, len(moves[index]) - 1)]
-        board = copy.deepcopy(node)
-        board.make_move(move, node.opponent[node.player])
-        node = board
-        while node.is_win() != 0:
-            moves = node.get_all_possible_moves(self.opponent)
+        board = copy.deepcopy(self.b)
+        board.make_move(move, self.opponent[self.player])
+        newNode = MCTS(board, self.opponent[self.player], root = self)
+        node = newNode.b
+        player = self.opponent[self.player]
+        # it is now the opponent's turn
+        while node.is_win(player) != 0:
+            moves = node.get_all_possible_moves(player)
             index  = randint(0, len(moves) - 1)
             move = moves[index][randint(0, len(moves[index]) - 1)]
             board = copy.deepcopy(node)
-            board.make_move(move, self.opponent[self.player])
+            board.make_move(move, player)
             node = board
+            player = self.opponent[player]
         # here we update the appropriate value for the player with the win
-        color = node.is_win()
-        node.backpropagate(color)
+        color = node.is_win(player)
+        newNode.backpropagate(color)
     
     
     # DONE
@@ -184,4 +188,8 @@ class MCTS():
         
         return self.w / self.s + C * math.sqrt(math.log(self.root.v) / self.v) \
                if self.s != 0 else 1
-               
+
+    def getColor(self):
+        if self.player == 2:
+            return "W"
+        return "B"
