@@ -169,7 +169,7 @@ class MCTS():
         node = newNode.b
         player = self.opponent[self.player]
         # it is now the opponent's turn
-        while node.is_win(player) != 0:
+        while node.is_win(self.getColor(player)) != 0:
             moves = node.get_all_possible_moves(player)
             index  = randint(0, len(moves) - 1)
             move = moves[index][randint(0, len(moves[index]) - 1)]
@@ -178,7 +178,7 @@ class MCTS():
             node = board
             player = self.opponent[player]
         # here we update the appropriate value for the player with the win
-        color = node.is_win(player)
+        color = node.is_win(self.getColor(player))
         newNode.backpropagate(color)
     
     
@@ -189,7 +189,7 @@ class MCTS():
         return self.w / self.s + C * math.sqrt(math.log(self.root.v) / self.v) \
                if self.s != 0 else 1
 
-    def getColor(self):
-        if self.player == 2:
+    def getColor(self, player):
+        if player == 2:
             return "W"
         return "B"
