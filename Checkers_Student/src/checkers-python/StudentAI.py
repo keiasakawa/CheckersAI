@@ -57,7 +57,7 @@ class StudentAI():
         
         return move
     
-    # we do alpha-beta pruning to get rid of nodes we do not need to explore
+    """ we do alpha-beta pruning to get rid of nodes we do not need to explore """
     # FOR BOARD, WHETHER TO DEEP COPY or UNDO
     def alphaBeta(self, board, player,  alpha, beta, depth):
         # we check to see if the current state is end
@@ -96,13 +96,14 @@ C = math.sqrt(2)    # Exploration constant.
 
 class MCTS():
     
-    def __init__(self, board, root = None, state = None):
+    def __init__(self, board, player, root = None, state = None):
         
         self.b = board      # Keep board state of node.
         
         self.w = 0          # Count the number of win(s).
         self.s = 0          # Count the number of simulation(s).
-        
+        self.player = player # Keep track of whose turn it is
+        self.opponent = {1:2, 2:1}
         self.root = root    # Keep track of parent for back-propagation.
         self.leaf = []      # List of childrens to explore or exploit.
         
@@ -119,10 +120,14 @@ class MCTS():
         
     
     # TODO: REQUIRED
-    def expansion(self):
+    def expansion(self, node):
         """ Fill current node with children. """
-        
-        self.leaf = 
+        board = copy.deepcopy(node.b)
+        for move in node.b.get_all_possible_moves(self.opponent[self.player]):
+            board = copy.deepcopy(self.b)
+            board.make_move(move, self.opponent[self.player])
+            self.leaf.append(board)
+        self.simulation(node)
     
     
     # TODO: Optional
@@ -133,17 +138,44 @@ class MCTS():
     
     
     # TODO: REQUIRED    
-    def selection(self, depth):
+    def selection(self, depth, node):
         """ Select a child node to explore based on UCT value. """
-        
-        pass
+        # if a leaf node is reached, we expand
+        if node.leaf.len() == 0:
+            self.expansion(node)
+        else:
+            # we find the highest value for the UCB
+            maxVal = -math.inf
+            for leaf in node.leaf():
+                pot = leaf.uct()
+                if pot > maxVal:
+                    maxVal = pot
+                    selected = leaf
+            # make a recursive call with the node of the highest value
+            self.selection(depth + 1, selected)
     
     
     # TODO: REQUIRED
-    def simulation(self):
+    def simulation(self, node):
         """ Simulate a game is played. """
-        
-        pass
+        # random but we can implement an evaluation
+        moves = node.b.get_all_possible_moves(node.opponent[node.player])
+        # pick a random node to simulate on
+        index  = randint(0, len(moves) - 1)
+        move = moves[index][randint(0, len(moves[index]) - 1)]
+        board = copy.deepcopy(node)
+        board.make_move(move, node.opponent[node.player])
+        node = board
+        while node.is_win() != 0:
+            moves = node.get_all_possible_moves(self.opponent)
+            index  = randint(0, len(moves) - 1)
+            move = moves[index][randint(0, len(moves[index]) - 1)]
+            board = copy.deepcopy(node)
+            board.make_move(move, self.opponent[self.player])
+            node = board
+        # here we update the appropriate value for the player with the win
+        color = node.is_win()
+        node.backpropagate(color)
     
     
     # DONE
@@ -153,4 +185,3 @@ class MCTS():
         return self.w / self.s + C * math.sqrt(math.log(self.root.v) / self.v) \
                if self.s != 0 else 1
                
-    
