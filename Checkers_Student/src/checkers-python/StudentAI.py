@@ -63,7 +63,7 @@ class StudentAI():
         # we check to see if the current state is end
         # if we reach a certain depth, we want to stop searching
         if board.is_win() in [1,2] or depth == 5:
-            return state # implement the heuristic here
+            return  # implement the heuristic here
 
         # the maximizing player, which is us
         if player == self.color:
@@ -122,20 +122,39 @@ class MCTS():
     # TODO: REQUIRED
     def expansion(self):
         """ Fill current node with children. """
-        board = copy.deepcopy(self.b)
         for move in self.b.get_all_possible_moves(self.opponent[self.player]):
             board = copy.deepcopy(self.b)
             board.make_move(move, self.opponent[self.player])
-            self.leaf.append(board)
+            newNode = MCTS(board, self.opponent[self.player], root = self)
+            # add a MCTS object for each new child
+            self.leaf.append(newNode)
         self.simulation()
     
     
     # TODO: Optional
     def evaluation(self):
         """ Heuristic evaluation in selecting random node for simulation. """
-        
-        pass
-    
+        value = 0
+        for row in self.b:
+            for col in self.b[row]:
+                piece = self.b[row][col]
+                if piece.color == self.player: # change
+                    value += 1
+                    if piece.is_king:
+                        value += 1
+                    else:
+                        value += row # farther up = better
+                    if col == 0 or col == self.b.col - 1:
+                        value += 0.5
+                elif piece.color == self.opponent[self.player]:
+                    value -= 1
+                    if piece.is_king: # if it's a king it doesn't matter what row
+                        value -= 1
+                    else:
+                        value -= self.b.row - row
+                    if col == 0 or col == self.b.col - 1:
+                        value -= 0.5
+        return value
     
     # TODO: REQUIRED    
     def selection(self, depth):
@@ -159,12 +178,10 @@ class MCTS():
     def simulation(self):
         """ Simulate a game is played. """
         # random but we can implement an evaluation
-        moves = self.b.get_all_possible_moves(self.opponent[self.player])
+        moves = self.leaf
         # pick a random node to simulate on
         index  = randint(0, len(moves) - 1)
-        move = moves[index][randint(0, len(moves[index]) - 1)]
-        board = copy.deepcopy(self.b)
-        board.make_move(move, self.opponent[self.player])
+        board = moves[index].b
         newNode = MCTS(board, self.opponent[self.player], root = self)
         node = newNode.b
         player = self.opponent[self.player]
