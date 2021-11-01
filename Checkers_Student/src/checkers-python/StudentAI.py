@@ -4,8 +4,9 @@ from random       import choice
 from random       import randint
 from timeit       import default_timer as timer
 
-import math
 import copy
+import math
+import os
 
 #The following part should be completed by students.
 #Students can modify anything except the class name and exisiting functions and varibles.
@@ -44,10 +45,13 @@ class StudentAI():
             move = \
             self.tree.run(0                                          \
                           if timer() + 4 > self.timeStart + 480 else \
-                          20, moves)
+                          100, moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
+        
+        if self.board.is_win(self.color) != 0:
+            self.tree.log()
         
         return move
     
@@ -107,6 +111,10 @@ class MCTS():
         self.game = copy.deepcopy(board)
         self.play = player
         
+        if os.path.exists(str(self.game.col) + "_" + \
+                          str(self.game.row) + "_" + \
+                          str(self.game.p)):
+            self.load()
     
     # TODO: Complete. Require testing.
     def run(self, q, moves):
@@ -116,7 +124,8 @@ class MCTS():
             self.select()
             self.simulate()
         
-        mval = 0
+        mval = -1
+        move = str(moves[0][0])
         
         for name, leaf in self.curr.l.items():
             
@@ -222,14 +231,19 @@ class MCTS():
     def load(self):
         """ Log the game into a file. """
         
-        pass
+        f = open(str(self.game.col) + "_" + \
+                 str(self.game.row) + "_" + \
+                 str(self.game.p), "w")
+        
     
     
     # TODO: Complete.
-    def log(self, col, row, p):
+    def log(self):
         """ Load a previous log if it exists. """
         
-        f = open(str(col) + "_" + str(row) + "_" + str(p), "w")
+        f = open(str(self.game.col) + "_" + \
+                 str(self.game.row) + "_" + \
+                 str(self.game.p), "w")
         
         output_str = self.parse("", self.root) + self.dfs(self.root, 1)
         
@@ -256,7 +270,6 @@ class MCTS():
         """ Parse node to string for logging. """
         
         return name + "," + str(node.w) + "," + str(node.s) + "\n"
-    
     
 #   def evaluation(self):
 #       """ Heuristic evaluation in selecting random node for simulation. """
@@ -303,16 +316,16 @@ class Node():
                         # VALUE: The node associated with the move
     
     
-    def uct(self, player = 1):
+    def uct(self, player):
         """ Compute the upper confidence bound. """
         
         if player == 1:
             return math.inf            \
                    if self.s == 0 else \
-                   self.w / self.s + self.C * math.log(self.p.s / self.s)
+                   (self.w / self.s) + (self.C * math.log(self.p.s / self.s))
         else:
             return math.inf            \
                    if self.s == 0 else \
-                   1 - (self.w / self.s) + self.C * math.log(self.p.s / self.s)
+                   1 - (self.w / self.s) + (self.C * math.log(self.p.s / self.s))
 
 # ==== EOF =================================================================== #

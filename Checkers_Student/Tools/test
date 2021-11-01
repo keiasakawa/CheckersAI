@@ -2,4 +2,6 @@
 
 python3 AI_Runner.py 8 8 2 l "../src/checkers-python/main.py" \
                              "./Sample_AIs/Random_AI/main.py"
+python3 AI_Runner.py 8 8 2 l "./Sample_AIs/Random_AI/main.py" \
+                             "../src/checkers-python/main.py"
 
