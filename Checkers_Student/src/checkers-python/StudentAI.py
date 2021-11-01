@@ -1,5 +1,6 @@
 from BoardClasses import Board
 from BoardClasses import Move
+from random       import choice
 from random       import randint
 from timeit       import default_timer as timer
 
@@ -24,36 +25,29 @@ class StudentAI():
         self.color = ''
         self.opponent = {1:2, 2:1}
         self.color = 2
+        self.tree = MCTS(self.board, self.color)
     
     def get_move(self, move):
         
         if len(move) != 0:
+            self.tree.update_current(move)
             self.board.make_move(move, self.opponent[self.color])
         else:
             self.color = 1
+            self.tree = MCTS(self.board, self.color)
         
-        moves       = self.board.get_all_possible_moves(self.color)
-        index       = randint(0, len(moves) - 1)        # TODO: Remove later.
-        inner_index = randint(0, len(moves[index]) - 1) # TODO: Remove later.
-        move        = moves[index][inner_index]         # TODO: Remove later.
+        moves = self.board.get_all_possible_moves(self.color)
         
         if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
-            
-            # If there's only one move, then return it.
             move = moves[0][0]
-            
-        elif timer() + 4 > self.timeStart + 480:
-            
-            # Return random moves if 4 seconds or less are remaining.
-            i    = randint(0, len(moves) - 1)
-            move = moves[i][randint(0, len(moves[i]) - 1)]
-
         else:
-            
-            pass
-            # TODO: Call MCTS.
-            
-        self.board.make_move(move,self.color)
+            move = \
+            self.tree.run(0                                          \
+                          if timer() + 4 > self.timeStart + 480 else \
+                          20, moves)
+        
+        self.tree.update_current(move)
+        self.board.make_move(move, self.color)
         
         return move
     
@@ -92,121 +86,233 @@ class StudentAI():
                     break
             return minNode, m
 
-C = math.sqrt(2)    # Exploration constant.
+# ==== MONTE-CARLO TREE SEARCH =============================================== #
 
 class MCTS():
     
-    def __init__(self, board, player, root = None, state = None):
+    """
+    A controller of the Monte-Carlo tree search. Responsible for handling
+    necessary functions, such as back-propagation, expansion, selection, and
+    simulation.
+    
+    Optionally, it can log and load a game save to improve future performance.
+    """
+    
+    def __init__(self, board, player):
         
-        self.b = board      # Keep board state of node.
+        self.root = Node(1)
+        self.curr = self.root
+        self.trav = self.root
         
-        self.w = 0          # Count the number of win(s).
-        self.s = 0          # Count the number of simulation(s).
-        self.player = player # Keep track of whose turn it is
-        self.opponent = {1:2, 2:1}
-        self.root = root    # Keep track of parent for back-propagation.
-        self.leaf = []      # List of childrens to explore or exploit.
+        self.game = copy.deepcopy(board)
+        self.play = player
         
-        # TODO: Implement state for specialized action.
+    
+    # TODO: Complete. Require testing.
+    def run(self, q, moves):
+        """ Execute the entire MCTS process q times and return optimal move. """
         
-    # DONE
+        for i in range(q):
+            self.select()
+            self.simulate()
+        
+        mval = 0
+        
+        for name, leaf in self.curr.l.items():
+            
+            uctv = leaf.uct(self.play)
+            
+            if mval < uctv:
+                move = name
+                mval = uctv
+        
+        return Move.from_str(move)
+    
+        
+    # TODO: Complete. Require testing.
     def backpropagate(self, value):
-        """  Propagate terminal value recursively back to descendant nodes. """
+        """ Back-propagation from terminal nodes. """
         
-        self.w += value
-        self.s += 1
+        s = True
         
-        self.root.backpropagate(value)
+        while self.trav != self.root:
+            
+            if self.trav == self.curr:
+                s = False
+            
+            if s:
+                self.game.undo()
+            
+            self.trav.w += value
+            self.trav.s += 1
+            self.trav    = self.trav.p
+        
+        self.root.w += value
+        self.root.s += 1
+        
+        self.trav = self.curr
         
     
-    # TODO: REQUIRED
-    def expansion(self):
-        """ Fill current node with children. """
-        for move in self.b.get_all_possible_moves(self.opponent[self.player]):
-            board = copy.deepcopy(self.b)
-            board.make_move(move, self.opponent[self.player])
-            newNode = MCTS(board, self.opponent[self.player], root = self)
-            # add a MCTS object for each new child
-            self.leaf.append(newNode)
-        self.simulation()
+    # TODO: Complete. Require testing.
+    def expand(self):
+        """ Fill up traveled node with leaf node(s). """
+        
+        for piece in self.game.get_all_possible_moves(self.trav.c):
+            for move in piece:
+                self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
     
     
-    # TODO: Optional
-    def evaluation(self):
-        """ Heuristic evaluation in selecting random node for simulation. """
-        value = 0
-        for row in self.b:
-            for col in self.b[row]:
-                piece = self.b[row][col]
-                if piece.color == self.player: # change
-                    value += 1
-                    if piece.is_king:
-                        value += 1
-                    else:
-                        value += row # farther up = better
-                    if col == 0 or col == self.b.col - 1:
-                        value += 0.5
-                elif piece.color == self.opponent[self.player]:
-                    value -= 1
-                    if piece.is_king: # if it's a king it doesn't matter what row
-                        value -= 1
-                    else:
-                        value -= self.b.row - row
-                    if col == 0 or col == self.b.col - 1:
-                        value -= 0.5
-        return value
+    # TODO: Complete. Require testing.
+    def select(self):
+        """ Select node until a childless node is reached. """
+        
+        while self.trav.l:
+            
+            mval = 0
+            
+            for name, leaf in self.trav.l.items():
+                
+                uctv = leaf.uct(self.play)
+                
+                if mval < uctv:
+                    move = name
+                    mval = uctv
+            
+            self.game.make_move(Move.from_str(move), self.trav.c)
+            self.trav = self.trav.l[move]
     
-    # TODO: REQUIRED    
-    def selection(self, depth):
-        """ Select a child node to explore based on UCT value. """
-        # if a leaf node is reached, we expand
-        if self.leaf.len() == 0:
-            self.expansion()
+    
+    # TODO: Complete. Require testing.
+    def simulate(self):
+        """ Run a simulation. Should be run on a node with no child. """
+        
+        while self.game.is_win(self.play) == 0:
+            self.expand()
+            
+            if not self.trav.l:
+            	break
+            
+            move      = choice(list(self.trav.l.keys()))
+            self.game.make_move(Move.from_str(move), self.trav.c)
+            self.trav = self.trav.l[move]
+        
+        term_val = self.game.is_win(self.play)
+        
+        if term_val == 1:
+            self.backpropagate(1)
+        elif term_val == -1:
+            self.backpropagate(0.5)
         else:
-            # we find the highest value for the UCB
-            maxVal = -math.inf
-            for leaf in self.leaf():
-                pot = leaf.uct()
-                if pot > maxVal:
-                    maxVal = pot
-                    selected = leaf
-            # make a recursive call with the node of the highest value
-            selected.selection(depth + 1)
+            self.backpropagate(0)
     
     
-    # TODO: REQUIRED
-    def simulation(self):
-        """ Simulate a game is played. """
-        # random but we can implement an evaluation
-        moves = self.leaf
-        # pick a random node to simulate on
-        index  = randint(0, len(moves) - 1)
-        board = moves[index].b
-        newNode = MCTS(board, self.opponent[self.player], root = self)
-        node = newNode.b
-        player = self.opponent[self.player]
-        # it is now the opponent's turn
-        while node.is_win(self.getColor(player)) != 0:
-            moves = node.get_all_possible_moves(player)
-            index  = randint(0, len(moves) - 1)
-            move = moves[index][randint(0, len(moves[index]) - 1)]
-            board = copy.deepcopy(node)
-            board.make_move(move, player)
-            node = board
-            player = self.opponent[player]
-        # here we update the appropriate value for the player with the win
-        color = node.is_win(self.getColor(player))
-        newNode.backpropagate(color)
-    
-    
-    # DONE
-    def uct(self):
-        """ Compute the UCT value of the node for selection process. """
+    # TODO: Complete. Require testing.
+    def update_current(self, move):
+        """ Update current node with move. """
         
-        return self.w / self.s + C * math.sqrt(math.log(self.root.v) / self.v) \
-               if self.s != 0 else 1
+        if not self.curr.l:
+            self.expand()
+        
+        self.game.make_move(move, self.trav.c)
+        self.curr = self.curr.l[str(move)]
+        self.trav = self.curr
+    
+    
+    # TODO: OPTIONAL. Incomplete.
+    def load(self):
+        """ Log the game into a file. """
+        
+        pass
+    
+    
+    # TODO: Complete.
+    def log(self, col, row, p):
+        """ Load a previous log if it exists. """
+        
+        f = open(str(col) + "_" + str(row) + "_" + str(p), "w")
+        
+        output_str = self.parse("", self.root) + self.dfs(self.root, 1)
+        
+        f.write(output_str)
+        f.close()
+    
+    
+    # TODO: Complete.
+    def dfs(self, node, lvl):
+        """ Depth-first search for logging. """
+        
+        output_str = ""
+        
+        for name, leaf in node.l.items():
+            output_str += " " * lvl +             \
+                          self.parse(name, leaf) + \
+                          self.dfs(leaf, lvl + 1)
+        
+        return output_str
+    
+    
+    # TODO: Complete.
+    def parse(self, name, node):
+        """ Parse node to string for logging. """
+        
+        return name + "," + str(node.w) + "," + str(node.s) + "\n"
+    
+    
+#   def evaluation(self):
+#       """ Heuristic evaluation in selecting random node for simulation. """
+#       value = 0
+#       for row in self.b:
+#           for col in self.b[row]:
+#               piece = self.b[row][col]
+#               if piece.color == self.player: # change
+#                   value += 1
+#                   if piece.is_king:
+#                       value += 1
+#                   else:
+#                       value += row # farther up = better
+#                   if col == 0 or col == self.b.col - 1:
+#                       value += 0.5
+#               elif piece.color == self.opponent[self.player]:
+#                   value -= 1
+#                   if piece.is_king: # if it's a king it doesn't matter what row
+#                       value -= 1
+#                   else:
+#                       value -= self.b.row - row
+#                   if col == 0 or col == self.b.col - 1:
+#                       value -= 0.5
+#       return value
 
-    def getColor(self, player):
-        if player == 2:
-            return "W"
-        return "B"
+# ==== NODE ================================================================== #
+
+class Node():
+    
+    C = math.sqrt(2)
+    
+    def __init__(self, player, parent = None):
+        
+        self.w = 0      # Number of win(s).
+        self.s = 0      # Number of simulation(s).
+        
+        self.c = player # Make sure the correct player is making the move.
+                        # 1 for Player 1 / Black
+                        # 2 for Player 2 / White
+        
+        self.p = parent # Pin parent node for back-propagation.
+        self.l = {}     # Dictionary of all possible Move object(s).
+                        # KEY: Move in string (ex. '(0,0)-(2,2)-(0,4)')
+                        # VALUE: The node associated with the move
+    
+    
+    def uct(self, player = 1):
+        """ Compute the upper confidence bound. """
+        
+        if player == 1:
+            return math.inf            \
+                   if self.s == 0 else \
+                   self.w / self.s + self.C * math.log(self.p.s / self.s)
+        else:
+            return math.inf            \
+                   if self.s == 0 else \
+                   1 - (self.w / self.s) + self.C * math.log(self.p.s / self.s)
+
+# ==== EOF =================================================================== #
