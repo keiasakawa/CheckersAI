@@ -1,7 +1,26 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
-python3 AI_Runner.py 8 8 2 l "../src/checkers-python/main.py" \
-                             "./Sample_AIs/Random_AI/main.py"
-python3 AI_Runner.py 8 8 2 l "./Sample_AIs/Random_AI/main.py" \
-                             "../src/checkers-python/main.py"
+run_test_p1()
+{
+	python3 AI_Runner.py "$1" "$2" "$3" l "../src/checkers-python/main.py" \
+                                              "./Sample_AIs/Random_AI/main.py"
+}
 
+run_test_p2()
+{
+	python3 AI_Runner.py "$1" "$2" "$3" l "./Sample_AIs/Random_AI/main.py" \
+                                              "../src/checkers-python/main.py"
+}
+
+run_test_p1 8 8 2
+run_test_p2 8 8 2
+
+#P1_TIME="$(time (run_test_p1 10 10 3) 2>&1 1>/dev/null)"
+#printf '%s\n' "$P1_TIME"
+#P2_TIME="$(time (run_test_p2 12 12 3) 2>&1 1>/dev/null)"
+#printf '%s\n' "$P2_TIME"
+
+# 8  - 2000
+# 10 - 1250
+# 12 - 200
+# 14 - 75

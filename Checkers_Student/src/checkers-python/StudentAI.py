@@ -13,7 +13,6 @@ import os
 
 class StudentAI():
 
-    # Keep track of time.
     timeStart = timer()
 
     def __init__(self, col, row, p):
@@ -27,6 +26,8 @@ class StudentAI():
         self.opponent = {1:2, 2:1}
         self.color = 2
         self.tree = MCTS(self.board, self.color)
+        self.time = 0
+    
     
     def get_move(self, move):
         
@@ -42,16 +43,18 @@ class StudentAI():
         if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
             move = moves[0][0]
         else:
-            move = \
-            self.tree.run(0                                          \
-                          if timer() + 4 > self.timeStart + 480 else \
-                          100, moves)
+            if self.time == 0:
+                self.time = timer()
+                move = self.tree.run(500, moves)
+                self.time = timer() - self.time + 8
+            else:
+                move =                                                      \
+                self.tree.run(0                                             \
+                              if timer() + self.time > self.timeStart + 480 \
+                              else 500, moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
-        
-        if self.board.is_win(self.color) != 0:
-            self.tree.log()
         
         return move
     
@@ -104,19 +107,13 @@ class MCTS():
     
     def __init__(self, board, player):
         
-        self.root = Node(1)
-        self.curr = self.root
-        self.trav = self.root
+        self.curr = Node(1)
+        self.trav = self.curr
         
         self.game = copy.deepcopy(board)
         self.play = player
         
-        if os.path.exists(str(self.game.col) + "_" + \
-                          str(self.game.row) + "_" + \
-                          str(self.game.p)):
-            self.load()
     
-    # TODO: Complete. Require testing.
     def run(self, q, moves):
         """ Execute the entire MCTS process q times and return optimal move. """
         
@@ -131,38 +128,28 @@ class MCTS():
             
             uctv = leaf.uct(self.play)
             
-            if mval < uctv:
+            if mval < uctv and uctv != math.inf:
                 move = name
                 mval = uctv
         
         return Move.from_str(move)
     
-        
-    # TODO: Complete. Require testing.
+    
     def backpropagate(self, value):
         """ Back-propagation from terminal nodes. """
         
-        s = True
-        
-        while self.trav != self.root:
+        while self.trav != self.curr:
             
-            if self.trav == self.curr:
-                s = False
-            
-            if s:
-                self.game.undo()
+            self.game.undo()
             
             self.trav.w += value
             self.trav.s += 1
             self.trav    = self.trav.p
         
-        self.root.w += value
-        self.root.s += 1
-        
-        self.trav = self.curr
+        self.curr.w += value
+        self.curr.s += 1
         
     
-    # TODO: Complete. Require testing.
     def expand(self):
         """ Fill up traveled node with leaf node(s). """
         
@@ -171,13 +158,13 @@ class MCTS():
                 self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
     
     
-    # TODO: Complete. Require testing.
     def select(self):
         """ Select node until a childless node is reached. """
         
         while self.trav.l:
             
             mval = 0
+            move = list(self.trav.l.keys())[0]
             
             for name, leaf in self.trav.l.items():
                 
@@ -191,7 +178,6 @@ class MCTS():
             self.trav = self.trav.l[move]
     
     
-    # TODO: Complete. Require testing.
     def simulate(self):
         """ Run a simulation. Should be run on a node with no child. """
         
@@ -215,7 +201,6 @@ class MCTS():
             self.backpropagate(0)
     
     
-    # TODO: Complete. Require testing.
     def update_current(self, move):
         """ Update current node with move. """
         
@@ -226,50 +211,6 @@ class MCTS():
         self.curr = self.curr.l[str(move)]
         self.trav = self.curr
     
-    
-    # TODO: OPTIONAL. Incomplete.
-    def load(self):
-        """ Log the game into a file. """
-        
-        f = open(str(self.game.col) + "_" + \
-                 str(self.game.row) + "_" + \
-                 str(self.game.p), "w")
-        
-    
-    
-    # TODO: Complete.
-    def log(self):
-        """ Load a previous log if it exists. """
-        
-        f = open(str(self.game.col) + "_" + \
-                 str(self.game.row) + "_" + \
-                 str(self.game.p), "w")
-        
-        output_str = self.parse("", self.root) + self.dfs(self.root, 1)
-        
-        f.write(output_str)
-        f.close()
-    
-    
-    # TODO: Complete.
-    def dfs(self, node, lvl):
-        """ Depth-first search for logging. """
-        
-        output_str = ""
-        
-        for name, leaf in node.l.items():
-            output_str += " " * lvl +             \
-                          self.parse(name, leaf) + \
-                          self.dfs(leaf, lvl + 1)
-        
-        return output_str
-    
-    
-    # TODO: Complete.
-    def parse(self, name, node):
-        """ Parse node to string for logging. """
-        
-        return name + "," + str(node.w) + "," + str(node.s) + "\n"
     
 #   def evaluation(self):
 #       """ Heuristic evaluation in selecting random node for simulation. """
