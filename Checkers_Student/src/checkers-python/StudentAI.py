@@ -45,7 +45,7 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(500, moves)
+                move = self.tree.run(200, moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
@@ -58,40 +58,6 @@ class StudentAI():
         
         return move
     
-    """ we do alpha-beta pruning to get rid of nodes we do not need to explore """
-    # FOR BOARD, WHETHER TO DEEP COPY or UNDO
-    def alphaBeta(self, board, player,  alpha, beta, depth):
-        # we check to see if the current state is end
-        # if we reach a certain depth, we want to stop searching
-        if board.is_win() in [1,2] or depth == 5:
-            return  # implement the heuristic here
-
-        # the maximizing player, which is us
-        if player == self.color:
-            maxNode = -math.inf
-            # made deep copy but wastes space so we can change this
-            for move in board.get_all_possible_moves(player):
-                b = copy.deepcopy(board)
-                b.make_move(move, self.color)
-                node, candidate = self.alphaBeta(b, self.opponent[self.color], alpha, beta, depth + 1)
-                if (node > maxNode):
-                    maxNode = node
-                    m = candidate
-                alpha = max(alpha, node)
-                if beta <= alpha:
-                    break
-            return maxNode, m
-        else:
-            minNode = math.inf 
-            for move in board.get_all_possible_moves(player):
-                b = copy.deepcopy(board)
-                b.make_move(move, self.opponent[self.color])
-                node, m = self.alphaBeta(b, self.color, alpha, beta, depth + 1)
-                minNode = min(minNode, node)
-                beta = min(beta, node)
-                if beta <= alpha:
-                    break
-            return minNode, m
 
 # ==== MONTE-CARLO TREE SEARCH =============================================== #
 
@@ -187,9 +153,20 @@ class MCTS():
             if not self.trav.l:
             	break
             
-            move      = choice(list(self.trav.l.keys()))
-            self.game.make_move(Move.from_str(move), self.trav.c)
-            self.trav = self.trav.l[move]
+            # REMOVE IF NECESSARY!!!!!
+            eval = -math.inf
+            for move in list(self.trav.l.keys()):
+                self.game.make_move(Move.from_str(move), self.trav.c)
+                # we search a tree of depth 3 to find the best move possible
+                result = self.alphaBeta(self.game, self.play, -math.inf, math.inf, 2)
+                if result > eval:
+                    final = move
+                self.game.undo()
+
+            # INCLUDE IF NECESSARY!!!!!
+            #move      = choice(list(self.trav.l.keys()))
+            self.game.make_move(Move.from_str(final), self.trav.c)
+            self.trav = self.trav.l[final]
         
         term_val = self.game.is_win(self.play)
         
@@ -200,6 +177,46 @@ class MCTS():
         else:
             self.backpropagate(0)
     
+    """ we do alpha-beta pruning to get rid of nodes we do not need to explore """
+    def alphaBeta(self, board, player,  alpha, beta, depth):
+        # we check to see if the current state is end
+        # if we reach a certain depth, we want to stop searching
+        if board.is_win(1) or board.is_win(2) or depth == 0:
+            return self.evaluation(board)
+
+        # the maximizing player, which is us
+        if player == self.play:
+            maxNode = -math.inf
+            breakFlag = False
+            for piece in board.get_all_possible_moves(player):
+                for move in piece:
+                    board.make_move(move, player)
+                    node = self.alphaBeta(board, 3 - player, alpha, beta, depth - 1)
+                    board.undo()
+                    maxNode = max(maxNode, node)
+                    alpha = max(alpha, node)
+                    if beta <= alpha:
+                        breakFlag = True
+                        break
+                if breakFlag:
+                    break
+            return maxNode
+        else:
+            minNode = math.inf 
+            breakFlag = False
+            for piece in board.get_all_possible_moves(player):
+                for move in piece:
+                    board.make_move(move, player)
+                    node = self.alphaBeta(board, 3 - player, alpha, beta, depth - 1)
+                    board.undo()
+                    minNode = min(minNode, node)
+                    beta = min(beta, node)
+                    if beta <= alpha:
+                        breakFlag = True
+                        break
+                if breakFlag:
+                    break
+            return minNode
     
     def update_current(self, move):
         """ Update current node with move. """
@@ -212,29 +229,29 @@ class MCTS():
         self.trav = self.curr
     
     
-#   def evaluation(self):
-#       """ Heuristic evaluation in selecting random node for simulation. """
-#       value = 0
-#       for row in self.b:
-#           for col in self.b[row]:
-#               piece = self.b[row][col]
-#               if piece.color == self.player: # change
-#                   value += 1
-#                   if piece.is_king:
-#                       value += 1
-#                   else:
-#                       value += row # farther up = better
-#                   if col == 0 or col == self.b.col - 1:
-#                       value += 0.5
-#               elif piece.color == self.opponent[self.player]:
-#                   value -= 1
-#                   if piece.is_king: # if it's a king it doesn't matter what row
-#                       value -= 1
-#                   else:
-#                       value -= self.b.row - row
-#                   if col == 0 or col == self.b.col - 1:
-#                       value -= 0.5
-#       return value
+    def evaluation(self, board):
+        """ Heuristic evaluation in selecting random node for simulation. """
+        value = 0
+        for row in range(board.row):
+            for col in range(board.col):
+                piece = board.board[row][col]
+                if piece.color == self.play: 
+                    value += 1
+                    if piece.is_king:
+                        value += 1
+                    else:
+                        value += row # farther up = better
+                    if col == 0 or col == board.col - 1:
+                        value += 0.5
+                elif piece.color == 3 - self.play:
+                    value -= 1
+                    if piece.is_king: # if it's a king it doesn't matter what row
+                        value -= 1
+                    else:
+                        value -= board.row - row
+                    if col == 0 or col == board.col - 1:
+                        value -= 0.5
+        return value
 
 # ==== NODE ================================================================== #
 
