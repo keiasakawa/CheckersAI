@@ -45,7 +45,7 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(200, moves)
+                move = self.tree.run(500, moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
@@ -157,8 +157,7 @@ class MCTS():
             eval = -math.inf
             for move in list(self.trav.l.keys()):
                 self.game.make_move(Move.from_str(move), self.trav.c)
-                # we search a tree of depth 3 to find the best move possible
-                result = self.alphaBeta(self.game, self.play, -math.inf, math.inf, 2)
+                result = self.evaluation(self.game)
                 if result > eval:
                     final = move
                 self.game.undo()
@@ -176,12 +175,13 @@ class MCTS():
             self.backpropagate(0.5)
         else:
             self.backpropagate(0)
-    
+
+    # IGNORE 
     """ we do alpha-beta pruning to get rid of nodes we do not need to explore """
     def alphaBeta(self, board, player,  alpha, beta, depth):
         # we check to see if the current state is end
         # if we reach a certain depth, we want to stop searching
-        if board.is_win(1) or board.is_win(2) or depth == 0:
+        if board.is_win(player) != 0 or depth == 0:
             return self.evaluation(board)
 
         # the maximizing player, which is us
@@ -238,17 +238,17 @@ class MCTS():
                 if piece.color == self.play: 
                     value += 1
                     if piece.is_king:
-                        value += 1
+                        value += 3
                     else:
-                        value += row # farther up = better
+                        value += row * 0.5 # farther up = better
                     if col == 0 or col == board.col - 1:
                         value += 0.5
                 elif piece.color == 3 - self.play:
                     value -= 1
                     if piece.is_king: # if it's a king it doesn't matter what row
-                        value -= 1
+                        value -= 3
                     else:
-                        value -= board.row - row
+                        value -= (board.row - row) * 0.5
                     if col == 0 or col == board.col - 1:
                         value -= 0.5
         return value
