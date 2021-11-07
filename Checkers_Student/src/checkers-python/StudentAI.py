@@ -45,13 +45,13 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(500, moves)
+                move = self.tree.run(800, moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
                 self.tree.run(0                                             \
                               if timer() + self.time > self.timeStart + 480 \
-                              else 500, moves)
+                              else 800, moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
@@ -146,26 +146,29 @@ class MCTS():
     
     def simulate(self):
         """ Run a simulation. Should be run on a node with no child. """
-        
+
+        player = self.play
         while self.game.is_win(self.play) == 0:
             self.expand()
             
             if not self.trav.l:
             	break
             
-            # REMOVE IF NECESSARY!!!!!
+            '''# REMOVE IF NECESSARY!!!!!
             eval = -math.inf
             for move in list(self.trav.l.keys()):
                 self.game.make_move(Move.from_str(move), self.trav.c)
-                result = self.evaluation(self.game)
+                result = self.evaluation(player)
                 if result > eval:
                     final = move
-                self.game.undo()
+                self.game.undo()'''
 
             # INCLUDE IF NECESSARY!!!!!
-            #move      = choice(list(self.trav.l.keys()))
-            self.game.make_move(Move.from_str(final), self.trav.c)
-            self.trav = self.trav.l[final]
+            move      = choice(list(self.trav.l.keys()))
+            self.game.make_move(Move.from_str(move), self.trav.c)
+            self.trav = self.trav.l[move]
+            # We need to switch to the perspective of the other player
+            player = 3 - player
         
         term_val = self.game.is_win(self.play)
         
@@ -229,28 +232,39 @@ class MCTS():
         self.trav = self.curr
     
     
-    def evaluation(self, board):
+    def evaluation(self, player):
         """ Heuristic evaluation in selecting random node for simulation. """
         value = 0
-        for row in range(board.row):
-            for col in range(board.col):
-                piece = board.board[row][col]
-                if piece.color == self.play: 
-                    value += 1
-                    if piece.is_king:
-                        value += 3
+        for row in range(self.game.row):
+            for col in range(self.game.col):
+                piece = self.game.board[row][col]
+                # create evaluation depending on the color
+                if player == 1: # BLACK
+                    if (piece == 1):
+                        value += 1
+                        if piece.is_king:
+                            value += 3
+                        if col == 0 or col == self.game.col - 1:
+                            value += 0.5
                     else:
-                        value += row * 0.5 # farther up = better
-                    if col == 0 or col == board.col - 1:
-                        value += 0.5
-                elif piece.color == 3 - self.play:
-                    value -= 1
-                    if piece.is_king: # if it's a king it doesn't matter what row
-                        value -= 3
+                        value -= 1
+                        if piece.is_king: # if it's a king it doesn't matter what row
+                            value -= 3
+                        if col == 0 or col == self.game.col - 1:
+                            value -= 0.5
+                elif player == 2: # WHITE
+                    if (piece == 1):
+                        value -= 1
+                        if piece.is_king: # if it's a king it doesn't matter what row
+                            value -= 3
+                        if col == 0 or col == self.game.col - 1:
+                            value -= 0.5
                     else:
-                        value -= (board.row - row) * 0.5
-                    if col == 0 or col == board.col - 1:
-                        value -= 0.5
+                        value += 1
+                        if piece.is_king: # if it's a king it doesn't matter what row
+                            value += 3
+                        if col == 0 or col == self.game.col - 1:
+                            value += 0.5
         return value
 
 # ==== NODE ================================================================== #
@@ -280,10 +294,10 @@ class Node():
         if player == 1:
             return math.inf            \
                    if self.s == 0 else \
-                   (self.w / self.s) + (self.C * math.log(self.p.s / self.s))
+                   (self.w / self.s) + (self.C * math.sqrt(math.log(self.p.s) / self.s))
         else:
             return math.inf            \
                    if self.s == 0 else \
-                   1 - (self.w / self.s) + (self.C * math.log(self.p.s / self.s))
+                   1 - (self.w / self.s) + (self.C * math.sqrt(math.log(self.p.s) / self.s))
 
 # ==== EOF =================================================================== #
