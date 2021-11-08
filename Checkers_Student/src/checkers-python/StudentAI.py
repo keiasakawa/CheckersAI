@@ -45,13 +45,13 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(800, moves)
+                move = self.tree.run(300, moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
                 self.tree.run(0                                             \
                               if timer() + self.time > self.timeStart + 480 \
-                              else 800, moves)
+                              else 300, moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
@@ -78,6 +78,7 @@ class MCTS():
         
         self.game = copy.deepcopy(board)
         self.play = player
+        self.expanded = self.curr
         
     
     def run(self, q, moves):
@@ -103,25 +104,37 @@ class MCTS():
     
     def backpropagate(self, value):
         """ Back-propagation from terminal nodes. """
-        
-        while self.trav != self.curr:
-            
+        # we want to delete the date of the simulated nodes
+        # we don't care about these nodes
+        while self.expanded != self.trav:          
             self.game.undo()
-            
-            self.trav.w += value
+            node = self.trav
+            self.trav = self.trav.p
+            del node
+        while self.trav != self.curr:
+            self.game.undo()
             self.trav.s += 1
+            # node for use
+            if self.trav.c == self.play:
+                self.trav.w += value
+            else: # node for enemy
+                if value == 0.5:
+                    self.trav.w += 0.5
+                elif value == 0:
+                    self.trav.w += 1
             self.trav    = self.trav.p
-        
         self.curr.w += value
         self.curr.s += 1
         
     
     def expand(self):
         """ Fill up traveled node with leaf node(s). """
-        
+        li = {}
         for piece in self.game.get_all_possible_moves(self.trav.c):
             for move in piece:
-                self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
+                li[str(move)] = Node(3 - self.trav.c, self.trav)
+                #self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
+        return li
     
     
     def select(self):
@@ -142,17 +155,37 @@ class MCTS():
             
             self.game.make_move(Move.from_str(move), self.trav.c)
             self.trav = self.trav.l[move]
+            self.expanded = self.trav
     
     
     def simulate(self):
         """ Run a simulation. Should be run on a node with no child. """
-
-        player = self.play
+        # Expand once to save
+        for piece in self.game.get_all_possible_moves(self.trav.c):
+            for move in piece:
+                self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
+        # If the node we expanded on is a win
+        if not self.trav.l:
+            term_val = self.game.is_win(self.play)
+            if term_val == 1:
+                self.backpropagate(1)
+            elif term_val == -1:
+                self.backpropagate(0.5)
+            else:
+                self.backpropagate(0)
+        move  = choice(list(self.trav.l.keys())) # select a random node to simulate on
+        self.game.make_move(Move.from_str(move), self.trav.c)
+        self.trav = self.trav.l[move]
+        self.expanded = self.trav
+        
+        # Now we simulate without saving
         while self.game.is_win(self.play) == 0:
-            self.expand()
+            dict = self.expand()
             
-            if not self.trav.l:
-            	break
+            if not dict:
+                break
+            #if not self.trav.l:
+            #	break
             
             '''# REMOVE IF NECESSARY!!!!!
             eval = -math.inf
@@ -164,23 +197,23 @@ class MCTS():
                 self.game.undo()'''
 
             # INCLUDE IF NECESSARY!!!!!
-            move      = choice(list(self.trav.l.keys()))
+            move      = choice(list(dict.keys()))
             self.game.make_move(Move.from_str(move), self.trav.c)
-            self.trav = self.trav.l[move]
+            self.trav = dict[move]
             # We need to switch to the perspective of the other player
-            player = 3 - player
+            #player = 3 - player
         
         term_val = self.game.is_win(self.play)
         
-        if term_val == 1:
+        if term_val == self.play:
             self.backpropagate(1)
         elif term_val == -1:
             self.backpropagate(0.5)
         else:
             self.backpropagate(0)
 
-    # IGNORE 
-    """ we do alpha-beta pruning to get rid of nodes we do not need to explore """
+    """
+     we do alpha-beta pruning to get rid of nodes we do not need to explore 
     def alphaBeta(self, board, player,  alpha, beta, depth):
         # we check to see if the current state is end
         # if we reach a certain depth, we want to stop searching
@@ -219,13 +252,15 @@ class MCTS():
                         break
                 if breakFlag:
                     break
-            return minNode
+            return minNode"""
     
     def update_current(self, move):
         """ Update current node with move. """
         
         if not self.curr.l:
-            self.expand()
+            for piece in self.game.get_all_possible_moves(self.trav.c):
+                for m in piece:
+                    self.trav.l[str(m)] = Node(3 - self.trav.c, self.trav)
         
         self.game.make_move(move, self.trav.c)
         self.curr = self.curr.l[str(move)]
