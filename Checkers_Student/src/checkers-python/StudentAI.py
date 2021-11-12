@@ -45,13 +45,13 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(500, moves)
+                move = self.tree.run(2000, moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
                 self.tree.run(0                                             \
                               if timer() + self.time > self.timeStart + 480 \
-                              else 500, moves)
+                              else 2000, moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
@@ -85,7 +85,7 @@ class MCTS():
         
         for i in range(q):
             self.select()
-            self.expand()
+            self.simulate()
         
         mval = -1
         move = str(moves[0][0])
@@ -101,62 +101,44 @@ class MCTS():
         return Move.from_str(move)
     
     
-    def backpropagate(self, value, amount):
+    def backpropagate(self, value):
         """ Back-propagation from terminal nodes. """
-        # we want to delete the date of the simulated nodes
-        # we don't care about these nodes
-        delete = 0
-        while delete < amount:
-            self.game.undo()
-            delete += 1
+        
+        # Revert back to original as 'value' method of node is dependent on
+        # player's color/number. No need to change it according to player's
+        # color/number.
+        
+        # Additionally, no need to count number of nodes to back up as we know
+        # that once the travelled node is the same as the current, we can stop.
+        
         while self.trav != self.curr:
+            
             self.game.undo()
+            
+            self.trav.w += value
             self.trav.s += 1
-            # node for use
-            if self.trav.c == self.play:
-                self.trav.w += value
-            else: # node for enemy
-                if value == 0.5:
-                    self.trav.w += 0.5
-                elif value == 0:
-                    self.trav.w += 1
             self.trav    = self.trav.p
+        
         self.curr.w += value
         self.curr.s += 1
         
     
     def expand(self):
         """ Fill up traveled node with leaf node(s). """
-        # Expand once to save
+        
+        # Revert back to original as it's implicit on that expand should
+        # backpropagate on terminal node in the 'simulate' method.
+        
         for piece in self.game.get_all_possible_moves(self.trav.c):
             for move in piece:
                 self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
-        # If the node we expanded on is a win
-        if not self.trav.l:
-            term_val = self.game.is_win(self.play)
-            if term_val == 1:
-                self.backpropagate(1, 0)
-            elif term_val == -1:
-                self.backpropagate(0.5, 0)
-            else:
-                self.backpropagate(0, 0)
-        move  = choice(list(self.trav.l.keys())) # select a random node to simulate on
-        self.game.make_move(Move.from_str(move), self.trav.c)
-        self.trav = self.trav.l[move]
-        self.simulate()
-        '''
-        li = {}
-        for piece in self.game.get_all_possible_moves(self.trav.c):
-            for move in piece:
-                li[str(move)] = Node(3 - self.trav.c, self.trav)
-                #self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
-        return li'''
     
     
     def select(self):
         """ Select node until a childless node is reached. """
         
         while self.trav.l:
+            
             mval = 0
             move = list(self.trav.l.keys())[0]
             
@@ -172,48 +154,32 @@ class MCTS():
             self.trav = self.trav.l[move]
         
     
-    
     def simulate(self):
         """ Run a simulation. Should be run on a node with no child. """
-        # Now we simulate without saving
-        amount = 0
-        player = self.trav.c
+        
+        # Revert back to original, see comment on 'backpropagate' method.
+        
         while self.game.is_win(self.play) == 0:
-            li = []
-            for piece in self.game.get_all_possible_moves(player):
-                for move in piece:
-                    li.append(move)
+            self.expand()
             
-            if not li:
-                break
-            #if not self.trav.l:
-            #	break
+            if not self.trav.l:
+            	break
             
-            '''# REMOVE IF NECESSARY!!!!!
-            eval = -math.inf
-            for move in list(self.trav.l.keys()):
-                self.game.make_move(Move.from_str(move), self.trav.c)
-                result = self.evaluation(player)
-                if result > eval:
-                    final = move
-                self.game.undo()'''
-
-            # INCLUDE IF NECESSARY!!!!!
-            move      = choice(li)
-            self.game.make_move(move, player)
-            amount += 1
-            # We need to switch to the perspective of the other player
-            player = 3 - player
-            del li
+            # Add evaluation if the computation power used for evaluation isn't
+            # heavy on the entire MCTS processes.
+            
+            move      = choice(list(self.trav.l.keys()))
+            self.game.make_move(Move.from_str(move), self.trav.c)
+            self.trav = self.trav.l[move]
         
         term_val = self.game.is_win(self.play)
         
-        if term_val == self.play:
-            self.backpropagate(1, amount)
+        if term_val == 1:
+            self.backpropagate(1)
         elif term_val == -1:
-            self.backpropagate(0.5, amount)
+            self.backpropagate(0.5)
         else:
-            self.backpropagate(0, amount)
+            self.backpropagate(0)
 
     """
      we do alpha-beta pruning to get rid of nodes we do not need to explore 
@@ -261,13 +227,12 @@ class MCTS():
         """ Update current node with move. """
         
         if not self.curr.l:
-            for piece in self.game.get_all_possible_moves(self.trav.c):
-                for m in piece:
-                    self.trav.l[str(m)] = Node(3 - self.trav.c, self.trav)
+            self.expand()
         
         self.game.make_move(move, self.trav.c)
-        self.curr = self.curr.l[str(move)]
-        self.trav = self.curr
+        self.curr   = self.curr.l[str(move)]
+        self.curr.p = None
+        self.trav   = self.curr
     
     
     def evaluation(self, player):
