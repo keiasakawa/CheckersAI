@@ -45,18 +45,30 @@ class StudentAI():
         else:
             if self.time == 0:
                 self.time = timer()
-                move = self.tree.run(2000, moves)
+                move = self.tree.run(self.calculateIteration(), moves)
                 self.time = timer() - self.time + 8
             else:
                 move =                                                      \
                 self.tree.run(0                                             \
                               if timer() + self.time > self.timeStart + 480 \
-                              else 2000, moves)
+                              else self.calculateIteration(), moves)
         
         self.tree.update_current(move)
         self.board.make_move(move, self.color)
         
         return move
+
+    def calculateIteration(self):
+        ''' 8X8 2 = 1000
+            9x9 2= 790
+            10x10 2 =640
+            8x8 3 = 667
+            9x9 3 = 527
+            10x10 3 = 427'''
+        # calculate based on dimensions and rows
+        total = 100 / (self.board.row * self.board.col * self.board.p)
+        total *= 1280
+        return round(total)
     
 
 # ==== MONTE-CARLO TREE SEARCH =============================================== #
