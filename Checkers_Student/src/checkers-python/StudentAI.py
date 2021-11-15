@@ -92,6 +92,7 @@ class MCTS():
         
         # Return only move.
         if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
+            self.update(moves[0][0])
             return moves[0][0]
         
         # Ignore spawning if running out of time.
