@@ -1,216 +1,268 @@
-from BoardClasses    import Board
-from BoardClasses    import Move
-from multiprocessing import Process
-from multiprocessing import cpu_count
-from random          import choice
-from random          import randint
-from timeit          import default_timer as timer
+# ==== IMPORTS =============================================================== #
 
-import copy
+from BoardClasses    import Board, Move
+from copy            import deepcopy
+from multiprocessing import Process, cpu_count
+from random          import choice, randint
+from timeit          import default_timer
+
 import math
-import os
 
-#The following part should be completed by students.
-#Students can modify anything except the class name and exisiting functions and varibles.
+# ==== STUDENTAI ============================================================= #
 
 class StudentAI():
-
-    timeStart = timer()
-
+    
+    # Keep track of when the game started.
+    timeStart = default_timer()
+    
     def __init__(self, col, row, p):
         
-        self.col = col
-        self.row = row
-        self.p = p
-        self.board = Board(col, row, p)
-        self.board.initialize_game()
-        self.color = ''
+        self.col      = col
+        self.row      = row
+        self.p        = p
+        self.board    = Board(col, row, p)
+        self.color    = ''
         self.opponent = {1:2, 2:1}
-        self.color = 2
-        self.tree = MCTS(self.board, self.color)
+        self.color    = 2
+        self.board.initialize_game()
+        
+        self.tree = MCTS(self.board, self.color, cpu_count())
         self.time = 0
     
     
     def get_move(self, move):
         
-        if len(move) != 0:
-            self.tree.update_current(move)
-            self.board.make_move(move, self.opponent[self.color])
-        else:
+        if len(move) == 0:
             self.color = 1
-            self.tree = MCTS(self.board, self.color)
-        
-        moves = self.board.get_all_possible_moves(self.color)
-        
-        if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
-            move = moves[0][0]
+            self.tree  = MCTS(self.board, self.color, cpu_count())
         else:
-            if self.time == 0:
-                self.time = timer()
-                move = self.tree.run(self.calculateIteration(), moves)
-                self.time = timer() - self.time + 8
-            else:
-                move =                                                      \
-                self.tree.run(0                                             \
-                              if timer() + self.time > self.timeStart + 480 \
-                              else self.calculateIteration(), moves)
+            self.tree.update(move)
+            self.board.make_move(move, self.opponent[self.color])
         
-        self.tree.update_current(move)
+        if self.time == 0:
+            self.time = default_timer()
+            move      = self.tree.run()
+            self.time = default_timer() - self.time + 8
+        else:
+            move = self.tree.run(False)                                       \
+                   if default_timer() + self.time > self.timeStart + 480 else \
+                   self.tree.run()
+        
         self.board.make_move(move, self.color)
         
         return move
-
-    def calculateIteration(self):
-        ''' 8X8 2 = 1000
-            9x9 2= 790
-            10x10 2 =640
-            8x8 3 = 667
-            9x9 3 = 527
-            10x10 3 = 427'''
-        # calculate based on dimensions and rows
-        total = 100 / (self.board.row * self.board.col * self.board.p)
-        total *= 1280
-        return round(total)
     
-
-# ==== MONTE-CARLO TREE SEARCH =============================================== #
+    
+# ==== MONTE CARLO TREE SEARCH =============================================== #
 
 class MCTS():
     
-    """
-    A controller of the Monte-Carlo tree search. Responsible for handling
-    necessary functions, such as back-propagation, expansion, selection, and
-    simulation.
+    def __init__(self, board, player, thread = 1):
+        """
+        A controller of the Monte-Carlo tree search. Responsible for handling
+        necessary functions, such as back-propagation, expansion, selection, and
+        simulation.
+        |
+        board  := the current board state (Board)
+        player := the player the AI is playing as (1, 2)
+        thread := number of threads to allocate (uint)
+        """
+        
+        self.curr = Node(1)    # Initialize node for first player.
+        
+        self.game = [deepcopy(board) for _ in range(thread)]
+        self.trav = [self.curr       for _ in range(thread)]
+        
+        # Get number of moves to make.
+        self.move = round(100000 / (board.row * board.col * board.p))
+        
+        self.thrd = thread  # Get number of threads.
+        self.play = player  # Player's color.
     
-    Optionally, it can log and load a game save to improve future performance.
-    """
     
-    def __init__(self, board, player):
+    def run(self, s = True):
+        """
+        Run a simulation.
+        |
+        s := simulation (bool)
+        """
         
-        self.curr = Node(1)
-        self.trav = self.curr
+        # Generate all possible moves.
+        moves = self.game[0].get_all_possible_moves(self.play)
         
-        self.game = copy.deepcopy(board)
-        self.play = player
+        # Return only move.
+        if [moves[0]] == moves and [moves[0][0]] == [moves[0]]:
+            return moves[0][0]
         
-    
-    def run(self, q, moves):
-        """ Execute the entire MCTS process q times and return optimal move. """
+        # Ignore spawning if running out of time.
+        if s:
+            
+            P = []  # Collections of threads to join at the end.
+            
+            # Start threads.
+            for i in range(self.thrd):
+                p = Process(target = self.unit, args = (i, ))
+                p.start()
+                P.append(p)
         
-        P = []
+            # Join threads.
+            for p in P:
+                p.join()
         
-        for _ in range(cpu_count()):
-            p = Process(target = self.unit, args = (q, ))
-            p.start()
-            P.append(p)
-        
-        for p in P:
-            p.join()
-        
-        mval = -1
-        move = str(moves[0][0])
+        v = 0                   # Base UCT value.
+        m = str(moves[0][0])    # Base move.
         
         for name, leaf in self.curr.l.items():
             
-            uctv = leaf.uct(self.play)
+            # Generate UCT without parent's weight.
+            uctv = leaf.uct(self.play, False)
             
-            if mval < uctv and uctv != math.inf:
-                move = name
-                mval = uctv
+            # Select highest non-infinite value
+            if v < uctv and uctv != math.inf:
+                v = uctv
+                m = name
         
-        return Move.from_str(move)
+        m = Move.from_str(m)
+        
+        # Update game boards.
+        
+        self.update(m)
+        
+        return m
     
     
-    def unit(self, q):
-        """ Thread unit to run. """
+    def unit(self, t):
+        """
+        Spawn a thread unit.
+        |
+        t := associated thread (uint)
+        """
         
-        for i in range(q):
-            self.select()
-            self.simulate()
-    	
-    
-    def backpropagate(self, value):
-        """ Back-propagation from terminal nodes. """
+        for _ in range(self.move):
+            self.select(t)
+            self.simulate(t)
         
-        # Revert back to original as 'value' method of node is dependent on
-        # player's color/number. No need to change it according to player's
-        # color/number.
+    def backpropagate(self, value, t):
+        """
+        Back-propagate from terminal nodes to current node.
+        |
+        value := value to back-propagate (uint)
+        t     := associated thread for the back-propagation (uint)
+        """
         
-        # Additionally, no need to count number of nodes to back up as we know
-        # that once the travelled node is the same as the current, we can stop.
-        
-        while self.trav != self.curr:
+        # Stops when the travelled node reach the current node. While iterating,
+        # undo the associated game board, back-propagate the value, and move
+        # travelled node to its parent.
+        while self.trav[t] != self.curr:
             
-            self.game.undo()
+            self.game[t].undo()
             
-            self.trav.w += value
-            self.trav.s += 1
-            self.trav    = self.trav.p
-        
-        self.curr.w += value
-        self.curr.s += 1
-        
+            self.trav[t].w += value
+            self.trav[t]    = self.trav[t].p
     
-    def expand(self):
-        """ Fill up traveled node with leaf node(s). """
         
-        # Revert back to original as it's implicit on that expand should
-        # backpropagate on terminal node in the 'simulate' method.
+    def expand(self, t = 0):
+        """
+        Expand argument node.
+        |
+        t := associated thread for the node (uint)
+        """
         
-        for piece in self.game.get_all_possible_moves(self.trav.c):
+        # Expand the node by iterating all possible moves.
+        for piece in self.game[t].get_all_possible_moves(self.trav[t].c):
             for move in piece:
-                self.trav.l[str(move)] = Node(3 - self.trav.c, self.trav)
+                self.trav[t].l[str(move)] = \
+                    Node(3 - self.trav[t].c, self.trav[t])
     
     
-    def select(self):
-        """ Select node until a childless node is reached. """
+    def select(self, t):
+        """
+        Select a node until a childless node is reached. Update simulation
+        value of selected node.
+        |
+        t := associated thread for the node (uint)
+        """
         
-        while self.trav.l:
+        # Continue while there exists a child node.
+        while self.trav[t].l:
             
-            mval = 0
-            move = list(self.trav.l.keys())[0]
+            # Update the simulation value.
+            self.trav[t].s += 1
             
-            for name, leaf in self.trav.l.items():
+            v = 0                               # Initialize highest value as 0.
+            m = list(self.trav[t].l.keys())[0]  # Select first move as base.
+            
+            for name, leaf in self.trav[t].l.items():
                 
-                uctv = leaf.uct(self.trav.c)
+                # Compute UCT value of child node.
+                uctv = leaf.uct(self.trav[t].c)
                 
-                if mval < uctv:
-                    move = name
-                    mval = uctv
+                # Select highest UCT value child.
+                if v < uctv:
+                    v = uctv
+                    m = name
             
-            self.game.make_move(Move.from_str(move), self.trav.c)
-            self.trav = self.trav.l[move]
-        
+            # Move to highest UCT value child.
+            self.game[t].make_move(Move.from_str(m), self.trav[t].c)
+            self.trav[t] = self.trav[t].l[m]
     
-    def simulate(self):
-        """ Run a simulation. Should be run on a node with no child. """
+    
+    def simulate(self, t):
+        """
+        Run a simulation. Should only be called by 'unit'.
+        |
+        t := associated thread for the node (uint)
+        """
         
-        # Revert back to original, see comment on 'backpropagate' method.
+        self.trav[t].s += 1
         
-        while self.game.is_win(self.play) == 0:
-            self.expand()
+        # Stop only when terminal node is reached.
+        while self.game[t].is_win(self.trav[t].c) == 0:
             
-            if not self.trav.l:
-            	break
+            self.expand(t)
             
-            # Add evaluation if the computation power used for evaluation isn't
-            # heavy on the entire MCTS processes.
+            # Break from loop if no child spawn from expand.
+            if not self.trav[t].l:
+                break
             
-            move      = choice(list(self.trav.l.keys()))
-            self.game.make_move(Move.from_str(move), self.trav.c)
-            self.trav = self.trav.l[move]
+            # Randomly move to a child node.
+            move         = choice(list(self.trav[t].l.keys()))
+            self.game[t].make_move(Move.from_str(move), self.trav[t].c)
+            self.trav[t] = self.trav[t].l[move]
+            self.trav[t].s += 1
         
-        term_val = self.game.is_win(self.play)
         
-        if term_val == 1:
-            self.backpropagate(1)
-        elif term_val == -1:
-            self.backpropagate(0.5)
+        v = self.game[t].is_win(self.trav[t].c) # Compute terminal value.
+        
+        # Back-propagate with respective terminal value.
+        if v == 1:
+            self.backpropagate(1, t)
+        elif v == -1:
+            self.backpropagate(0.5, t)
         else:
-            self.backpropagate(0)
-
+            self.backpropagate(0, t)
+    
+    
+    def update(self, move):
+        """
+        Update current node with the move.
+        |
+        move := move to act on board (Move)
+        """
+        
+        # Expand current node if it's empty.
+        if not self.curr.l:
+            self.expand()
+        
+        self.curr   = self.curr.l[str(move)]
+        self.curr.p = None
+        
+        for i in range(self.thrd):
+            self.game[i].make_move(move, self.trav[i].c)
+            self.trav[i] = self.curr
+    
     """
-     we do alpha-beta pruning to get rid of nodes we do not need to explore 
+    We do alpha-beta pruning to get rid of nodes we do not need to explore.
     def alphaBeta(self, board, player,  alpha, beta, depth):
         # we check to see if the current state is end
         # if we reach a certain depth, we want to stop searching
@@ -249,22 +301,11 @@ class MCTS():
                         break
                 if breakFlag:
                     break
-            return minNode"""
+            return minNode
+    """
     
-    def update_current(self, move):
-        """ Update current node with move. """
-        
-        if not self.curr.l:
-            self.expand()
-        
-        self.game.make_move(move, self.trav.c)
-        self.curr   = self.curr.l[str(move)]
-        self.curr.p = None
-        self.trav   = self.curr
-    
-    
+    """
     def evaluation(self, player):
-        """ Heuristic evaluation in selecting random node for simulation. """
         value = 0
         for row in range(self.game.row):
             for col in range(self.game.col):
@@ -297,38 +338,53 @@ class MCTS():
                         if col == 0 or col == self.game.col - 1:
                             value += 0.5
         return value
+    """
 
 # ==== NODE ================================================================== #
 
 class Node():
     
-    C = math.sqrt(2)
+    C = math.sqrt(2)    # Parent's weight constant.
     
     def __init__(self, player, parent = None):
+        """
+        A node class that tracks of possible moves and their value.
+        |
+        player := player that is able to make a move for associated node (1, 2)
+        parent := parent node (Node)
+        """
         
-        self.w = 0      # Number of win(s).
-        self.s = 0      # Number of simulation(s).
+        self.w = 0  # Number of wins.
+        self.s = 0  # Number of simulations.
         
         self.c = player # Make sure the correct player is making the move.
                         # 1 for Player 1 / Black
                         # 2 for Player 2 / White
         
-        self.p = parent # Pin parent node for back-propagation.
-        self.l = {}     # Dictionary of all possible Move object(s).
+        self.p = parent # Link parent for back-propagation.
+        self.l = {}     # Dictionary of all possible Move objects.
                         # KEY: Move in string (ex. '(0,0)-(2,2)-(0,4)')
-                        # VALUE: The node associated with the move
+                        # VAL: Node associated with the key Move
     
     
-    def uct(self, player):
-        """ Compute the upper confidence bound. """
+    def uct(self, player, p = True):
+        """
+        Compute the upper confidence bound with ability to ignore the parent's
+        weight.
+        |
+        player := player that UCT is calculated with respect to (1, 2)
+        p      := include weight of parent in UCT calculation (bool)
+        """
         
-        if player == 1:
-            return math.inf            \
-                   if self.s == 0 else \
-                   (self.w / self.s) + (self.C * math.sqrt(math.log(self.p.s) / self.s))
-        else:
-            return math.inf            \
-                   if self.s == 0 else \
-                   1 - (self.w / self.s) + (self.C * math.sqrt(math.log(self.p.s) / self.s))
+        # Return infinity when Node is not explored to encourage exploration.
+        if self.s == 0:
+            return math.inf
+        
+        # Compute base weight.
+        w = (self.w / self.s) if player == 1 else 1 - (self.w / self.s)
+        
+        # Return with parent weight if True, otherwise base weight.
+        return w + self.C * math.sqrt(math.log(self.p.s) / self.s) if p else w
+    
 
 # ==== EOF =================================================================== #
