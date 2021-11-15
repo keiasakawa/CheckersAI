@@ -1,8 +1,10 @@
-from BoardClasses import Board
-from BoardClasses import Move
-from random       import choice
-from random       import randint
-from timeit       import default_timer as timer
+from BoardClasses    import Board
+from BoardClasses    import Move
+from multiprocessing import Process
+from multiprocessing import cpu_count
+from random          import choice
+from random          import randint
+from timeit          import default_timer as timer
 
 import copy
 import math
@@ -95,9 +97,15 @@ class MCTS():
     def run(self, q, moves):
         """ Execute the entire MCTS process q times and return optimal move. """
         
-        for i in range(q):
-            self.select()
-            self.simulate()
+        P = []
+        
+        for _ in range(cpu_count()):
+            p = Process(target = self.unit, args = (q, ))
+            p.start()
+            P.append(p)
+        
+        for p in P:
+            p.join()
         
         mval = -1
         move = str(moves[0][0])
@@ -112,6 +120,14 @@ class MCTS():
         
         return Move.from_str(move)
     
+    
+    def unit(self, q):
+        """ Thread unit to run. """
+        
+        for i in range(q):
+            self.select()
+            self.simulate()
+    	
     
     def backpropagate(self, value):
         """ Back-propagation from terminal nodes. """
@@ -156,7 +172,7 @@ class MCTS():
             
             for name, leaf in self.trav.l.items():
                 
-                uctv = leaf.uct(self.play)
+                uctv = leaf.uct(self.trav.c)
                 
                 if mval < uctv:
                     move = name
