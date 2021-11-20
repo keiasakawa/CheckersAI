@@ -74,7 +74,7 @@ class MCTS():
         self.trav = [self.curr       for _ in range(thread)]
         
         # Get number of moves to make.
-        self.move = round(100000 / (board.row * board.col * board.p))
+        self.move = round(128000 / (board.row * board.col * board.p))
         
         self.thrd = thread  # Get number of threads.
         self.play = player  # Player's color.
@@ -190,18 +190,24 @@ class MCTS():
             # Update the simulation value.
             self.trav[t].s += 1
             
+            L = list(self.trav[t].l.keys())	# List of moves.
             v = 0                               # Initialize highest value as 0.
-            m = list(self.trav[t].l.keys())[0]  # Select first move as base.
+            m = L[0]  				# Select first move as base.
             
-            for name, leaf in self.trav[t].l.items():
+            for move in L:
                 
                 # Compute UCT value of child node.
-                uctv = leaf.uct(self.trav[t].c)
+                uctv = self.trav[t].l[move].uct(self.trav[t].c)
                 
                 # Select highest UCT value child.
                 if v < uctv:
+                    
                     v = uctv
-                    m = name
+                    m = move
+                    
+                    # Stop iterating after reaching unexplored node.
+                    if v == math.inf:
+                    	break
             
             # Move to highest UCT value child.
             self.game[t].make_move(Move.from_str(m), self.trav[t].c)
@@ -231,7 +237,6 @@ class MCTS():
             self.game[t].make_move(Move.from_str(move), self.trav[t].c)
             self.trav[t] = self.trav[t].l[move]
             self.trav[t].s += 1
-        
         
         v = self.game[t].is_win(self.trav[t].c) # Compute terminal value.
         

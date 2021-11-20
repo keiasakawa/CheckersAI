@@ -12,8 +12,15 @@ run_test_p2()
                                               "../src/checkers-python/main.py"
 }
 
-run_test_p1 8 8 2
-run_test_p2 8 8 2
+for i in {1..50}; do
+	run_test_p1 8 8 2 | grep 'ie\|la' >> test_result
+done
+
+printf '%s\n' "# ==== #" >> test_result
+
+for i in {1..50}; do
+	run_test_p1 8 8 2 | grep 'ie\|la' >> test_result
+done
 
 #P1_TIME="$(time (run_test_p1 10 10 3) 2>&1 1>/dev/null)"
 #printf '%s\n' "$P1_TIME"
