@@ -52,7 +52,7 @@ class MCTS():
         |
         board := (Board) board to play during simulation
         """
-        
+        self.iterations = 25
         self.game = deepcopy(board) # Board to do simulation on.
         self.curr = Node(1)         # Root node of actual game.
         self.trav = self.curr       # Travelling node to traversed the tree.
@@ -64,16 +64,23 @@ class MCTS():
         |
         simulation := (bool) do simulation or skip it
         """
-        
+        # only 1 move
+        moves = self.game.get_all_possible_moves(self.curr.c) 
+        if len(moves) == 1 and len(moves[0]) == 1:
+            self.update(moves[0][0])
+            return moves[0][0]
+
         if simulation:
-            for i in range(1000):   # Run 'x' number of simulations.
+            start = default_timer()
+            #for i in range(self.iterations):   # Run 'x' number of simulations.
+            while default_timer() - start <= self.iterations:
                 self.select()       # May need to be dynamic for different
                 self.simulate()     # game environment.
         
         m = Move.from_str(self.getBestMove())
         
         self.update(m)
-        
+
         return m
     
     
