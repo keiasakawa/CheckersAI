@@ -33,7 +33,7 @@ class StudentAI():
         if self.time == 0:
             self.time = default_timer()
             m         = self.tree.run()
-            self.time = default_timer() - self.time + 20
+            self.time = default_timer() - self.time + 6
         else:
             m = self.tree.run(default_timer() + self.time < self.start + 480)
         
@@ -52,8 +52,7 @@ class MCTS():
         |
         board := (Board) board to play during simulation
         """
-        self.move = 0
-        self.iterations = 15
+        
         self.game = deepcopy(board) # Board to do simulation on.
         self.curr = Node(1)         # Root node of actual game.
         self.trav = self.curr       # Travelling node to traversed the tree.
@@ -69,22 +68,17 @@ class MCTS():
         moves = self.game.get_all_possible_moves(self.curr.c) 
         if len(moves) == 1 and len(moves[0]) == 1:
             self.update(moves[0][0])
-            self.move += 1
             return moves[0][0]
 
         if simulation:
-            self.iterations += 3 * (self.move // 10)
-            start = default_timer()
-            #for i in range(self.iterations):   # Run 'x' number of simulations.
-            while default_timer() - start <= self.iterations:
+            for i in range(900):   # Run 'x' number of simulations.
                 self.select()       # May need to be dynamic for different
                 self.simulate()     # game environment.
         
         m = Move.from_str(self.getBestMove())
         
         self.update(m)
-        self.move += 1
-
+        
         return m
     
     
