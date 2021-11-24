@@ -33,7 +33,7 @@ class StudentAI():
         if self.time == 0:
             self.time = default_timer()
             m         = self.tree.run()
-            self.time = default_timer() - self.time + 8
+            self.time = default_timer() - self.time + 6
         else:
             m = self.tree.run(default_timer() + self.time < self.start + 480)
         
@@ -64,9 +64,13 @@ class MCTS():
         |
         simulation := (bool) do simulation or skip it
         """
+        moves = self.game.get_all_possible_moves(self.curr.c)
+        if len(moves) == 1 and len(moves[0]) == 1:
+            self.update(moves[0][0])
+            return moves[0][0]
         
         if simulation:
-            for i in range(1000):   # Run 'x' number of simulations.
+            for i in range(900):   # Run 'x' number of simulations.
                 self.select()       # May need to be dynamic for different
                 self.simulate()     # game environment.
         
