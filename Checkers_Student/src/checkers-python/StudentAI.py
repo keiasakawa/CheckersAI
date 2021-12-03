@@ -20,12 +20,13 @@ class StudentAI():
         
         self.start    = default_timer()
         self.time     = 0
-        self.tree     = MCTS(self.board)
+        self.tree     = MCTS(self.board, self.color)
 
     def get_move(self, move):
         
         if len(move) == 0:
             self.color = 1
+            self.tree.update_color(self.color)
         else:
             self.tree.update(move)
             self.board.make_move(move, self.opponent[self.color])
@@ -42,17 +43,18 @@ class StudentAI():
         return m
 
 
+
 # ==== MONTE CARLO TREE SEARCH =============================================== #
 
 class MCTS():
     
-    def __init__(self, board):
+    def __init__(self, board, player):
         """
         Initialize MCTS controller.
         |
         board := (Board) board to play during simulation
         """
-        
+        self.player = player
         self.game = deepcopy(board) # Board to do simulation on.
         self.curr = Node(1)         # Root node of actual game.
         self.trav = self.curr       # Travelling node to traversed the tree.
@@ -66,33 +68,45 @@ class MCTS():
         """
         # only 1 move
         moves = self.game.get_all_possible_moves(self.curr.c) 
-       if [moves[0]] == moves and [moves[0][0]] == moves[0]:
+        if [moves[0]] == moves and [moves[0][0]] == moves[0]:
             self.update(moves[0][0])
             return moves[0][0]
 
         if simulation:
-            for i in range(900):   # Run 'x' number of simulations.
+            for i in range(1000):   # Run 'x' number of simulations.
                 self.select()       # May need to be dynamic for different
+                
+                # WE ONLY EXPAND ONCE
+                self.expand()
                 self.simulate()     # game environment.
         
         m = Move.from_str(self.getBestMove())
         
         self.update(m)
-        
         return m
     
     
-    def backpropagate(self, value):
+    def backpropagate(self, value, count):
         """
         Backpropagate by returning to parent and undoing board until current
         node is reached. Update value while doing it.
         |
         value := (uint) value to backpropagate
         """
-        
+
+        # undo because we did not save these states
+        while count > 0:
+            self.game.undo()
+            count -= 1
+
         while self.trav != self.curr:
             self.game.undo()
-            self.trav.update(value)
+
+            # update since the value is going to be different for the opponent
+            if self.trav.c != self.player:
+                self.trav.update_opponent(value)
+            else:
+                self.trav.update(value)
             self.trav = self.trav.p
     
     
@@ -139,29 +153,50 @@ class MCTS():
         Simulate over unexplored node. Ends when terminal node is reached and
         backpropagate appropriate value.
         """
-        
-        terminal_value = self.game.is_win(self.trav.c)
-        
-        while terminal_value == 0:
+        player = self.trav.c
+        terminal_value = self.game.get_all_possible_moves(player)
+        count = 0
+        while len(terminal_value) != 0 :
             
+            '''
+            s = default_timer()
             if not self.trav.moves():   # Sanity check for expand.
                 self.expand()
-            
+            f.write("Expand: " + str(default_timer() - s))
+            f.write("\n")
             moves = self.trav.moves()
             
             if not moves: break # Break when there's no available move.
+            '''
+            piece = choice(terminal_value)
+            m              = choice(piece)
             
-            m              = choice(moves)
-            self.game.make_move(Move.from_str(m), self.trav.c)
-            self.trav      = self.trav.l[m]
-            terminal_value = self.game.is_win(self.trav.c)
-        
-        if terminal_value == 1:
-            self.backpropagate(1)
+            # s = default_timer()
+            self.game.make_move(m, player)
+            player = 3 - player
+            # f.write("Make Move: " + str(default_timer() - s))
+            # f.write("\n")
+            #self.trav      = self.trav.l[str(m)]
+            #s = default_timer()
+            terminal_value = self.game.get_all_possible_moves(player)
+            #f.write("Win: " + str(default_timer() - s))
+            #f.write("\n")
+            count += 1
+
+        terminal_value = self.game.is_win(player)
+        #f.write("Simulate: " + str(default_timer() - start))
+        #f.write("\n")
+        #f.write("Count: " + str(count))
+        #f.write("\n")
+        #f.close()
+
+        # we need to back propagate on what color we are, not player 1
+        if terminal_value == self.player:
+            self.backpropagate(1, count)
         elif terminal_value == -1:
-            self.backpropagate(0.5)
+            self.backpropagate(0.5, count)
         else:
-            self.backpropagate(0)
+            self.backpropagate(0, count)
     
     
     def getBestMove(self):
@@ -199,6 +234,8 @@ class MCTS():
         self.curr.p = None                      # Clean up unused node.
         self.trav   = self.curr                 # Update travelling node.
     
+    def update_color(self, color):
+        self.player = color
 
 # ==== NODE ================================================================== #
 
@@ -295,5 +332,11 @@ class Node():
         self.w += value
         self.s += 1
 
+    def update_opponent(self, value):
+        if value == 0:
+            self.w += 1
+        elif value == 0.5:
+            self.w += 0.5
+        self.s += 1
 
 # ==== EOF =================================================================== #
