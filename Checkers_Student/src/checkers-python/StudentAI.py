@@ -118,6 +118,12 @@ class MCTS():
         
         for piece in self.game.get_all_possible_moves(self.trav.c):
             self.trav.add(piece)
+
+        # We Make A Random Move
+        if self.trav.l:
+            m = choice(self.trav.moves())
+            self.game.make_move(Move.from_str(m), self.trav.c)
+            self.trav = self.trav.l[m]
     
     
     def select(self):
