@@ -66,7 +66,7 @@ class MCTS():
         """
         # only 1 move
         moves = self.game.get_all_possible_moves(self.curr.c) 
-        if len(moves) == 1 and len(moves[0]) == 1:
+       if [moves[0]] == moves and [moves[0][0]] == moves[0]:
             self.update(moves[0][0])
             return moves[0][0]
 
