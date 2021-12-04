@@ -2,6 +2,8 @@
 
 from BoardClasses    import Board, Move
 from copy            import deepcopy
+from multiprocessing import Pool
+from os              import cpu_count
 from random          import choice
 from timeit          import default_timer
 
@@ -56,6 +58,7 @@ class MCTS():
         self.curr       = Node(1)           # Root node of actual game.
         self.trav       = self.curr         # Node to traversed the tree.
         self.shrt       = 4 + col + row     # Bypass 'is_win' check.
+        self.thrd       = cpu_count()
     
     
     def run(self, simulation = True):
@@ -74,10 +77,17 @@ class MCTS():
 
         if simulation:
             
-            for i in range(1000):
+            for i in range(32):
+                
                 self.select()       # May need to be dynamic for different
                 self.expand()
-                self.simulate()     # game environment.
+                
+                p = Pool()
+                o = p.map(self.simulate, range(self.thrd))
+                p.close()
+                p.join()
+                
+                self.backpropagate(sum(o))
         
         m = Move.from_str(self.getBestMove())
         
@@ -86,21 +96,17 @@ class MCTS():
         return m
     
     
-    def backpropagate(self, value, moves):
+    def backpropagate(self, value):
         """
         Backpropagate by returning to parent and undoing board until current
         node is reached. Update value while doing it.
         |
-        value := (uint) value to backpropagate
         moves := (uint) number of undos
         """
         
-        for _ in range(moves):
-            self.game.undo()
-        
         while self.trav != self.curr:
             self.game.undo()
-            self.trav.update(value)
+            self.trav.update(value, self.thrd)
             self.trav = self.trav.p
     
     
@@ -147,10 +153,12 @@ class MCTS():
             L         = self.trav.moves()
     
     
-    def simulate(self):
+    def simulate(self, null_arg):
         """
         Simulate over unexplored node. Ends when terminal node is reached and
         backpropagate appropriate value.
+        |
+        null_arg := placeholder argument for multiprocessing
         """
         color = self.trav.getColor()
         depth = self.trav.getDepth()
@@ -174,11 +182,11 @@ class MCTS():
         terminal_value = self.game.is_win(color)
         
         if terminal_value == 1:
-            self.backpropagate(1, count)
+            return 1
         elif terminal_value == -1:
-            self.backpropagate(0.5, count)
+            return 0.5
         else:
-            self.backpropagate(0, count)
+            return 0
     
     
     def getBestMove(self):
@@ -320,15 +328,16 @@ class Node():
         return r  + math.sqrt(2 * math.log(self.p.s) / self.s) if p else r
 
 
-    def update(self, value):
+    def update(self, value, s):
         """
         Update node's value. Increment simulation and add terminal value to win.
         |
+        s     := (uint)   number of simulations
         value := (ufloat) value to add to win
         """
         
         self.w += value
-        self.s += 1
+        self.s += s
 
 
 # ==== EOF =================================================================== #
