@@ -76,6 +76,7 @@ class MCTS():
             
             for i in range(1000):
                 self.select()       # May need to be dynamic for different
+                self.expand()
                 self.simulate()     # game environment.
         
         m = Move.from_str(self.getBestMove())
@@ -85,13 +86,17 @@ class MCTS():
         return m
     
     
-    def backpropagate(self, value):
+    def backpropagate(self, value, moves):
         """
         Backpropagate by returning to parent and undoing board until current
         node is reached. Update value while doing it.
         |
         value := (uint) value to backpropagate
+        moves := (uint) number of undos
         """
+        
+        for _ in range(moves):
+            self.game.undo()
         
         while self.trav != self.curr:
             self.game.undo()
@@ -107,7 +112,12 @@ class MCTS():
         
         for piece in self.game.get_all_possible_moves(self.trav.c):
             self.trav.add(piece)
-    
+        
+        if self.trav.l:
+            m         = choice(self.trav.moves())
+            self.game.make_move(Move.from_str(m), self.trav.c)
+            self.trav = self.trav.l[m]
+
     
     def select(self):
         """
@@ -142,33 +152,33 @@ class MCTS():
         Simulate over unexplored node. Ends when terminal node is reached and
         backpropagate appropriate value.
         """
+        color = self.trav.getColor()
+        depth = self.trav.getDepth()
         
-        terminal_value = 0                                        \
-                         if self.trav.getDepth() < self.shrt else \
-                         self.game.is_win(self.trav.c)
+        count = 0
+        moves = self.game.get_all_possible_moves(color)
         
-        while terminal_value == 0:
+        while moves != []:
             
-            if not self.trav.moves():   # Sanity check for expand.
-                self.expand()
+            self.game.make_move(choice(choice(moves)), color)
             
-            moves = self.trav.moves()
+            color  = 3 - color
+            depth += 1
+            count += 1
             
-            if not moves: break # Break when there's no available move.
+            if depth >= 20 and self.game.is_win(color) != 0:
+                break
             
-            m              = choice(moves)
-            self.game.make_move(Move.from_str(m), self.trav.c)
-            self.trav      = self.trav.l[m]
-            terminal_value = 0                                        \
-                             if self.trav.getDepth() < self.shrt else \
-                             self.game.is_win(self.trav.c)
+            moves  = self.game.get_all_possible_moves(color)
+        
+        terminal_value = self.game.is_win(color)
         
         if terminal_value == 1:
-            self.backpropagate(1)
+            self.backpropagate(1, count)
         elif terminal_value == -1:
-            self.backpropagate(0.5)
+            self.backpropagate(0.5, count)
         else:
-            self.backpropagate(0)
+            self.backpropagate(0, count)
     
     
     def getBestMove(self):
@@ -248,6 +258,14 @@ class Node():
         
         for child in children:
             self.l[str(child)] = Node(3 - self.c, self.d + 1, self)
+    
+    
+    def getColor(self):
+        """
+        Return color of node.
+        """
+        
+        return self.c
     
     
     def getDepth(self):
