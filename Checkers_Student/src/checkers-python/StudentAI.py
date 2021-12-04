@@ -77,7 +77,7 @@ class MCTS():
 
         if simulation:
             
-            for i in range(32):
+            for i in range(100):
                 
                 self.select()       # May need to be dynamic for different
                 self.expand()
