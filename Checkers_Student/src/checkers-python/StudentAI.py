@@ -88,8 +88,9 @@ class MCTS():
                 p.join()
                 
                 self.backpropagate(sum(o))
-        
-        m = Move.from_str(self.getBestMove())
+            m = Move.from_str(self.getBestMove())
+        else:
+            m = choice(choice(moves))
         
         self.update(m)
 
@@ -173,9 +174,6 @@ class MCTS():
             color  = 3 - color
             depth += 1
             count += 1
-            
-            if depth >= 20 and self.game.is_win(color) != 0:
-                break
             
             moves  = self.game.get_all_possible_moves(color)
         
