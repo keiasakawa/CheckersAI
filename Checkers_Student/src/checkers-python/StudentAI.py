@@ -22,8 +22,9 @@ class StudentAI():
         
         self.start    = default_timer()
         self.time     = 0
-        self.tree     = MCTS(self.board, col, row)
-
+        self.tree     = MCTS(self.board)
+    
+    
     def get_move(self, move):
         
         if len(move) == 0:
@@ -48,7 +49,7 @@ class StudentAI():
 
 class MCTS():
     
-    def __init__(self, board, col, row):
+    def __init__(self, board):
         """
         Initialize MCTS controller.
         |
@@ -57,7 +58,6 @@ class MCTS():
         self.game       = deepcopy(board)   # Board to do simulation on.
         self.curr       = Node(1)           # Root node of actual game.
         self.trav       = self.curr         # Node to traversed the tree.
-        self.shrt       = 4 + col + row     # Bypass 'is_win' check.
         self.thrd       = cpu_count()
     
     
@@ -81,6 +81,7 @@ class MCTS():
                 
                 self.select()       # May need to be dynamic for different
                 self.expand()
+                self.select()
                 
                 p = Pool()
                 o = p.map(self.simulate, range(self.thrd))
@@ -118,12 +119,7 @@ class MCTS():
         
         for piece in self.game.get_all_possible_moves(self.trav.c):
             self.trav.add(piece)
-        
-        if self.trav.l:
-            m         = choice(self.trav.moves())
-            self.game.make_move(Move.from_str(m), self.trav.c)
-            self.trav = self.trav.l[m]
-
+    
     
     def select(self):
         """
@@ -161,8 +157,6 @@ class MCTS():
         null_arg := placeholder argument for multiprocessing
         """
         color = self.trav.getColor()
-        depth = self.trav.getDepth()
-        
         count = 0
         moves = self.game.get_all_possible_moves(color)
         
@@ -171,11 +165,7 @@ class MCTS():
             self.game.make_move(choice(choice(moves)), color)
             
             color  = 3 - color
-            depth += 1
             count += 1
-            
-            if depth >= self.shrt and self.game.is_win(color) != 0:
-                break
             
             moves  = self.game.get_all_possible_moves(color)
         
@@ -223,38 +213,28 @@ class MCTS():
         self.curr   = self.curr.l[str(move)]    # Move current node to 'move'.
         self.curr.p = None                      # Clean up unused node.
         self.trav   = self.curr                 # Update travelling node.
-    
+
 
 # ==== NODE ================================================================== #
 
 class Node():
     
-    def __init__(self, player, depth = 0, parent = None):
+    def __init__(self, player, parent = None):
         """
         Node class for MCTS.
         |
-        depth  := (uint) depth of move
         player := (1, 2) player number for node
         parent := (Node) parent node if it exists
         """
         self.w = 0.0    # Number of wins.
         self.s = 0      # Number of simulations.
         
-        self.d = depth  # Depth of move.
         self.c = player # Respective player for node.
         self.p = parent # Parent node.
         
         self.l = {}     # Dictionary of moves children.
                         # KEY := str(Move)
                         # VAL := Node()
-    
-    
-    def __repr__(self):
-        """
-        Return formatted Node to standard output. USE FOR DEBUGGING.
-        """
-        
-        return self.str()
     
     
     def add(self, children):
@@ -265,7 +245,7 @@ class Node():
         """
         
         for child in children:
-            self.l[str(child)] = Node(3 - self.c, self.d + 1, self)
+            self.l[str(child)] = Node(3 - self.c, self)
     
     
     def getColor(self):
@@ -276,37 +256,12 @@ class Node():
         return self.c
     
     
-    def getDepth(self):
-        """
-        Return depth of node.
-        """
-        
-        return self.d
-    
-    
     def moves(self):
         """
         Return all name of children.
         """
         
         return list(self.l.keys())
-    
-    
-    def str(self, name = "", d = 0):
-        """
-        Handles formatting node to a string. USE FOR DEBUGGING.
-        |
-        name := (str)  name of node
-        d    := (uint) depth of node
-        """
-        
-        out = " " * d + name + \
-              "," + str(self.w) + "," + str(self.s) + "," + str(self.c)
-        
-        for child in self.moves():
-            out += "\n" + self.l[child].str(child, d + 1)
-        
-        return out
     
     
     def uct(self, player, p = True):
@@ -326,8 +281,8 @@ class Node():
         r = self.w / self.s if player == 2 else 1 - (self.w / self.s)
         
         return r  + math.sqrt(2 * math.log(self.p.s) / self.s) if p else r
-
-
+    
+    
     def update(self, value, s):
         """
         Update node's value. Increment simulation and add terminal value to win.
