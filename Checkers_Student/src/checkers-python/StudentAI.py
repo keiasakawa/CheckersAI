@@ -174,7 +174,7 @@ class MCTS():
             depth += 1
             count += 1
             
-            if depth >= 20 and self.game.is_win(color) != 0:
+            if depth >= self.shrt and self.game.is_win(color) != 0:
                 break
             
             moves  = self.game.get_all_possible_moves(color)
