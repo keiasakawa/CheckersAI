@@ -59,6 +59,9 @@ class MCTS():
         self.curr       = Node(1)           # Root node of actual game.
         self.trav       = self.curr         # Node to traversed the tree.
         self.thrd       = cpu_count()
+        
+        self.smlt       = \
+            round(9600 / (self.game.row * self.game.col * self.game.p))
     
     
     def run(self, simulation = True):
@@ -77,7 +80,7 @@ class MCTS():
 
         if simulation:
             
-            for i in range(self.calculate()):
+            for i in range(self.smlt):
                 
                 self.select()       # May need to be dynamic for different
                 self.expand()
@@ -96,8 +99,6 @@ class MCTS():
 
         return m
     
-    def calculate(self):
-        return 9600 // (self.game.row * self.game.col * self.game.p)
     
     def backpropagate(self, value):
         """
