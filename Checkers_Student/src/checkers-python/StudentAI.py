@@ -77,7 +77,7 @@ class MCTS():
 
         if simulation:
             
-            for i in range(75):
+            for i in range(self.calculate()):
                 
                 self.select()       # May need to be dynamic for different
                 self.expand()
@@ -96,6 +96,8 @@ class MCTS():
 
         return m
     
+    def calculate(self):
+        return 9600 // (self.game.row * self.game.col * self.game.p)
     
     def backpropagate(self, value):
         """
